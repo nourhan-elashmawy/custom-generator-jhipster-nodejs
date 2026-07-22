@@ -1,0 +1,104 @@
+import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus, Logger } from '@nestjs/common';
+import { Request, Response } from 'express';
+import { AppException, AppExceptionResponse } from './app.exception';
+import { ERROR_CODES, genericCodeForStatus } from './error-codes';
+
+/**
+ * The uniform error body every failed request returns.
+ *
+ * `code` is the entire frontend contract — the i18n key to translate. No human-readable message is
+ * ever sent to the client: that keeps the contract pure even for exceptions not yet migrated to
+ * {@link AppException} (e.g. stock/generated-CRUD throws), since there is no English text to leak or
+ * mistakenly display untranslated. `params` carries interpolation values for the translation.
+ * `path`/`timestamp` aid debugging.
+ */
+export interface ErrorResponseBody {
+  code: string;
+  status: number;
+  params: Record<string, unknown>;
+  path: string;
+  timestamp: string;
+}
+
+/**
+ * Global filter that normalizes every thrown exception into {@link ErrorResponseBody}.
+ *
+ * Registered once as an `APP_FILTER` provider in `AppModule`, it applies to all controllers — including
+ * CRUD generated later by JHipster — so no generated code needs editing to participate in the error-code
+ * system. It handles three cases:
+ *   1. {@link AppException}  — pass the explicit domain code / params straight through.
+ *   2. stock {@link HttpException} (validation, guards, generated CRUD) — map its status to a generic
+ *      `error.*` code. Any message it carried is logged server-side only, never returned to the client.
+ *   3. anything else — an unexpected server error, reported as `error.internal` (details logged, not leaked).
+ */
+@Catch()
+export class AllExceptionsFilter implements ExceptionFilter {
+  private readonly logger = new Logger('AllExceptionsFilter');
+
+  catch(exception: unknown, host: ArgumentsHost): void {
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request>();
+
+    const { body, logMessage } = this.toErrorBody(exception, request);
+
+    if (body.status >= 500) {
+      this.logger.error(`${request.method} ${request.url} -> ${body.code}: ${logMessage}`, (exception as Error)?.stack);
+    } else {
+      this.logger.debug(`${request.method} ${request.url} -> ${body.code} (${body.status}): ${logMessage}`);
+    }
+
+    response.status(body.status).json(body);
+  }
+
+  private toErrorBody(exception: unknown, request: Request): { body: ErrorResponseBody; logMessage: string } {
+    const path = request.url;
+    const timestamp = new Date().toISOString();
+
+    // 1) Our own coded exceptions — richest information, passed through unchanged.
+    if (exception instanceof AppException) {
+      const res = exception.getResponse() as AppExceptionResponse;
+      return {
+        body: { code: res.code, status: exception.getStatus(), params: res.params ?? {}, path, timestamp },
+        logMessage: res.message,
+      };
+    }
+
+    // 2) Stock Nest HttpException (validation pipe, guards, generated CRUD) — map status -> generic code.
+    if (exception instanceof HttpException) {
+      const status = exception.getStatus();
+      const generic = genericCodeForStatus(status);
+      const { message, params } = extractMessageAndParams(exception);
+      return { body: { code: generic.code, status, params, path, timestamp }, logMessage: message ?? generic.message };
+    }
+
+    // 3) Anything else — unexpected. Do not leak internals to the client.
+    return {
+      body: { code: ERROR_CODES.INTERNAL.code, status: HttpStatus.INTERNAL_SERVER_ERROR, params: {}, path, timestamp },
+      logMessage: (exception as Error)?.message ?? ERROR_CODES.INTERNAL.message,
+    };
+  }
+}
+
+/**
+ * Pulls a human message (and, for validation errors, the list of field messages) out of a stock
+ * HttpException whose response body may be a string or the default `{ statusCode, message, error }` object.
+ * The message is used for server-side logging only — see {@link ErrorResponseBody}.
+ */
+function extractMessageAndParams(exception: HttpException): { message?: string; params: Record<string, unknown> } {
+  const res = exception.getResponse();
+  if (typeof res === 'string') {
+    return { message: res, params: {} };
+  }
+  if (res && typeof res === 'object') {
+    const msg = (res as { message?: unknown }).message;
+    if (Array.isArray(msg)) {
+      // class-validator produces an array of constraint messages — expose them for the frontend.
+      return { message: msg.join('; '), params: { messages: msg } };
+    }
+    if (typeof msg === 'string') {
+      return { message: msg, params: {} };
+    }
+  }
+  return { params: {} };
+}

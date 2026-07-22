@@ -1,9 +1,10 @@
-import { Injectable, HttpException, HttpStatus, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindManyOptions, FindOneOptions, Repository } from 'typeorm';
 import { <%= entityClass %> } from '../domain/<%= entityFileName %>.entity';
 import { <%= dtoClass %> }  from '../service/dto/<%= entityFileName %>.dto';
 import { <%= entityClass %>Mapper }  from '../service/mapper/<%= entityFileName %>.mapper';
+import { AppException, ERROR_CODES } from '../web/errors';
 
 <%_
 const eagerLoadRelations = relationships.filter(rel => rel.ownerSide).map(rel => rel.propertyName);
@@ -84,7 +85,7 @@ export class <%= entityClass %>Service {
         await this.<%= entityInstance %>Repository.delete(id);
         const entityFind = await this.findById(id);
         if (entityFind) {
-          throw new HttpException('Error, entity not deleted!', HttpStatus.NOT_FOUND);
+          throw new AppException(ERROR_CODES.<%= nodejsErrorCodeKey %>);
         }
         return;
       }

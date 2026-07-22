@@ -151,6 +151,14 @@ export default class extends BaseApplicationGenerator {
               contentToAdd: `${entityClass}Module,`,
             }),
           );
+        source.addEntityErrorCode = ({ entityClass, nodejsErrorCodeKey, nodejsErrorCode }) =>
+          this.editFile(
+            `${SERVER_NODEJS_SRC_DIR}/src/web/errors/error-codes.ts`,
+            createNeedleCallback({
+              needle: 'jhipster-needle-add-entity-error-code',
+              contentToAdd: `${nodejsErrorCodeKey}: { code: '${nodejsErrorCode}', status: HttpStatus.NOT_FOUND, message: '${entityClass} not found.' },`,
+            }),
+          );
       },
       async preparing({ application }) {
         application.typeormOrderSupport = !application.databaseTypeMongodb;
@@ -165,6 +173,20 @@ export default class extends BaseApplicationGenerator {
         for (const entity of entitiesToLoad) {
           entity.entityBootstrap.dto = true;
         }
+      },
+    });
+  }
+
+  get [BaseApplicationGenerator.PREPARING_EACH_ENTITY]() {
+    return this.asPreparingEachEntityTaskGroup({
+      async prepareEntityErrorCode({ entity }) {
+        if (entity.builtIn || entity.skipServer) return;
+        // Stable key for the central ERROR_CODES registry (e.g. Zone -> ZONE_NOT_FOUND, OrderLine -> ORDER_LINE_NOT_FOUND)
+        // and its i18n code string (e.g. zone.notFound). Computed once so the registry needle and the entity
+        // service template reference the exact same identifier.
+        const constantCase = entity.entityClass.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toUpperCase();
+        entity.nodejsErrorCodeKey = `${constantCase}_NOT_FOUND`;
+        entity.nodejsErrorCode = `${entity.entityInstance}.notFound`;
       },
     });
   }
@@ -270,12 +292,13 @@ export default class extends BaseApplicationGenerator {
     return this.asPostWritingEntitiesTaskGroup({
       async postWritingEntitiesTemplateTask({ entities, source }) {
         for (const entity of entities.filter(entity => !entity.skipServer)) {
-          const { entityFileName, persistClass, entityClass } = entity;
+          const { entityFileName, persistClass, entityClass, nodejsErrorCodeKey, nodejsErrorCode } = entity;
           if (!entity.builtInUserManagement) {
             source.addEntityToNodeConfig({ entityFileName, persistClass });
           }
           if (!entity.builtIn) {
             source.addEntityToAppModule({ entityFileName, entityClass });
+            source.addEntityErrorCode({ entityClass, nodejsErrorCodeKey, nodejsErrorCode });
           }
         }
       },

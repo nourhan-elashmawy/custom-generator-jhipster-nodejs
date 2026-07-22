@@ -1,9 +1,10 @@
 import { jwtDecode } from 'jwt-decode';
 import Strategy = require('passport-oauth2');
 import { PassportStrategy } from '@nestjs/passport';
-import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { config } from '../config';
 import { AuthService } from '../service/auth.service';
+import { AppException, ERROR_CODES } from '../web/errors';
 import { oauth2Config } from './oauth2.config';
 
 const clientID = config.get('jhipster.security.oauth2.client.registration.oidc.client-id');
@@ -56,7 +57,7 @@ export class Oauth2Strategy extends PassportStrategy(Strategy) {
             return done(null, userProfile);
         } catch (e) {
             this.logger.error(e);
-            return done(new UnauthorizedException({ message: 'error to retrieve user info from accessToken' }), false);
+            return done(new AppException(ERROR_CODES.AUTH_USER_NOT_FOUND), false);
         }
     }
 }

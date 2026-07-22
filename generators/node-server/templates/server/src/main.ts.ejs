@@ -4,7 +4,8 @@ import cloudConfigClient from 'cloud-config-client';
 import { AppModule } from './app.module';
 import { setupSwagger } from './swagger';
 import { config } from './config';
-import { Logger, ValidationPipe, BadRequestException } from '@nestjs/common';
+import { Logger, ValidationError, ValidationPipe } from '@nestjs/common';
+import { AppException, ERROR_CODES } from './web/errors';
 <%_ if (!skipClient) { _%>
 import * as fs from 'fs';
 <%_ } _%>
@@ -24,7 +25,11 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, appOptions);
   app.useGlobalPipes(
     new ValidationPipe({
-      exceptionFactory: (): BadRequestException  => new BadRequestException('Validation error'),
+      // Emit the coded envelope for validation failures, with the offending fields in `params`.
+      exceptionFactory: (errors: ValidationError[]): AppException =>
+        new AppException(ERROR_CODES.VALIDATION_FAILED, {
+          fields: errors.map(error => ({ field: error.property, constraints: Object.keys(error.constraints ?? {}) })),
+        }),
       // https://github.com/nestjs/nest/issues/10683#issuecomment-1349614194
       forbidUnknownValues: false,
     }),

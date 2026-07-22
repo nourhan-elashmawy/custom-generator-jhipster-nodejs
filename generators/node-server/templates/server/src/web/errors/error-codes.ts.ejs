@@ -1,0 +1,103 @@
+import { HttpStatus } from '@nestjs/common';
+
+/**
+ * A single error-code definition.
+ *
+ * `code` is the stable machine identifier the frontend uses as an i18n translation key — it is the
+ * API contract and must never change once shipped. `message` is a default English string kept only
+ * as a developer / log / Swagger aid; clients must translate `code`, not display `message`.
+ */
+export interface ErrorCodeDefinition {
+  /** Stable machine code — the i18n key the frontend translates. Treat as an immutable contract. */
+  code: string;
+  /** HTTP status returned for this error. */
+  status: HttpStatus;
+  /** Default English message — developer / log aid only; NOT shown to end users. */
+  message: string;
+}
+
+/**
+ * Central registry of every error the API can emit.
+ *
+ * Two tiers:
+ *  - Generic (`error.*`) codes are derived from the HTTP status by {@link AllExceptionsFilter} and cover
+ *    every endpoint — including CRUD generated later by JHipster — with zero per-entity wiring.
+ *  - Domain (`auth.*`, `user.*`, …) codes are thrown explicitly from hand-written business logic via
+ *    {@link AppException} when a generic status code is not specific enough to translate meaningfully.
+ *
+ * Add a new domain code here first, then throw `new AppException(ERROR_CODES.YOUR_CODE, params?)`.
+ */
+export const ERROR_CODES = {
+  // --- Generic, status-based (fallbacks used by the exception filter) ---
+  BAD_REQUEST: { code: 'error.badRequest', status: HttpStatus.BAD_REQUEST, message: 'Bad request.' },
+  UNAUTHORIZED: { code: 'error.unauthorized', status: HttpStatus.UNAUTHORIZED, message: 'Unauthorized.' },
+  FORBIDDEN: { code: 'error.forbidden', status: HttpStatus.FORBIDDEN, message: 'Forbidden.' },
+  NOT_FOUND: { code: 'error.notFound', status: HttpStatus.NOT_FOUND, message: 'Resource not found.' },
+  CONFLICT: { code: 'error.conflict', status: HttpStatus.CONFLICT, message: 'Conflict.' },
+  VALIDATION_FAILED: { code: 'error.validation', status: HttpStatus.BAD_REQUEST, message: 'Validation error.' },
+  INTERNAL: { code: 'error.internal', status: HttpStatus.INTERNAL_SERVER_ERROR, message: 'Internal server error.' },
+
+  // --- Auth ---
+  AUTH_CREDENTIALS_REQUIRED: {
+    code: 'auth.credentialsRequired',
+    status: HttpStatus.BAD_REQUEST,
+    message: 'Login field and password are required!',
+  },
+  // Non-disclosing: wrong password and unknown login share this one code.
+  AUTH_INVALID_CREDENTIALS: {
+    code: 'auth.invalidCredentials',
+    status: HttpStatus.UNAUTHORIZED,
+    message: 'Invalid login field or password!',
+  },
+  AUTH_ACCOUNT_NOT_ACTIVATED: {
+    code: 'auth.accountNotActivated',
+    status: HttpStatus.UNAUTHORIZED,
+    message: 'Your account has not been activated!',
+  },
+  AUTH_USER_NOT_FOUND: {
+    code: 'auth.userNotFound',
+    status: HttpStatus.UNAUTHORIZED,
+    message: 'User does not exist.',
+  },
+
+  // --- User / account management ---
+  USER_LOGIN_ALREADY_USED: {
+    code: 'user.loginAlreadyUsed',
+    status: HttpStatus.BAD_REQUEST,
+    message: 'Login name already used!',
+  },
+  USER_EMAIL_ALREADY_USED: {
+    code: 'user.emailAlreadyUsed',
+    status: HttpStatus.BAD_REQUEST,
+    message: 'Email is already in use!',
+  },
+  USER_INVALID_LOGIN: {
+    code: 'user.invalidLogin',
+    status: HttpStatus.BAD_REQUEST,
+    message: 'Invalid login name!',
+  },
+  USER_INVALID_PASSWORD: {
+    code: 'user.invalidPassword',
+    status: HttpStatus.BAD_REQUEST,
+    message: 'Invalid password!',
+  },
+
+  // --- Generated entities (one `<ENTITY>_NOT_FOUND` per entity, appended by JHipster on entity generation) ---
+  // jhipster-needle-add-entity-error-code - JHipster will add entity error codes here, do not remove
+} as const satisfies Record<string, ErrorCodeDefinition>;
+
+export type ErrorCodeKey = keyof typeof ERROR_CODES;
+
+/** Generic definitions keyed by HTTP status, for the filter's status -> code fallback. */
+const GENERIC_BY_STATUS: Partial<Record<number, ErrorCodeDefinition>> = {
+  [HttpStatus.BAD_REQUEST]: ERROR_CODES.BAD_REQUEST,
+  [HttpStatus.UNAUTHORIZED]: ERROR_CODES.UNAUTHORIZED,
+  [HttpStatus.FORBIDDEN]: ERROR_CODES.FORBIDDEN,
+  [HttpStatus.NOT_FOUND]: ERROR_CODES.NOT_FOUND,
+  [HttpStatus.CONFLICT]: ERROR_CODES.CONFLICT,
+};
+
+/** Maps an HTTP status to the generic error-code definition used when no domain code was supplied. */
+export function genericCodeForStatus(status: number): ErrorCodeDefinition {
+  return GENERIC_BY_STATUS[status] ?? (status >= 500 ? ERROR_CODES.INTERNAL : ERROR_CODES.BAD_REQUEST);
+}
