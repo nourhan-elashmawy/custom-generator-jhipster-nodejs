@@ -1,0 +1,37 @@
+import { HttpException } from '@nestjs/common';
+import { ErrorCodeDefinition } from './error-codes';
+
+/**
+ * The payload carried inside an {@link AppException}. {@link AllExceptionsFilter} unpacks `code`/`params`
+ * into the public error envelope; `message` is used for server-side logging only and is never sent to
+ * the client — see {@link ErrorResponseBody}.
+ */
+export interface AppExceptionResponse {
+  code: string;
+  message: string;
+  params: Record<string, unknown>;
+}
+
+/**
+ * Application exception carrying a stable {@link ErrorCodeDefinition}.
+ *
+ * Throw this from business logic whenever a specific, translatable error code is warranted:
+ *
+ *   throw new AppException(ERROR_CODES.USER_EMAIL_ALREADY_USED);
+ *   throw new AppException(ERROR_CODES.VALIDATION_FAILED, { fields: [...] });
+ *
+ * `params` holds interpolation values for the frontend translation (e.g. a field or entity name) and
+ * is echoed back verbatim in the response envelope. Stock NestJS exceptions still work — they are
+ * mapped to generic `error.*` codes by the filter — but prefer AppException when a domain code exists.
+ */
+export class AppException extends HttpException {
+  readonly code: string;
+  readonly params: Record<string, unknown>;
+
+  constructor(definition: ErrorCodeDefinition, params: Record<string, unknown> = {}) {
+    const response: AppExceptionResponse = { code: definition.code, message: definition.message, params };
+    super(response, definition.status);
+    this.code = definition.code;
+    this.params = params;
+  }
+}

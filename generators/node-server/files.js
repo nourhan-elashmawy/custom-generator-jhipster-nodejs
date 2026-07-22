@@ -10,6 +10,10 @@ export const serverFiles = {
     {
       path: SERVER_NODEJS_DIR,
       templates: [
+        'src/web/errors/error-codes.ts',
+        'src/web/errors/app.exception.ts',
+        'src/web/errors/all-exceptions.filter.ts',
+        'src/web/errors/index.ts',
         'src/web/rest/user.controller.ts',
         'src/web/rest/account.controller.ts',
         'src/web/rest/public.user.controller.ts',

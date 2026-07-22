@@ -4,34 +4,27 @@ import { Page } from '../domain/base/pagination.entity';
 import { URL } from 'url';
 
 const applicationName = config.get('jhipster.clientApp.name');
-const enableTranslation = true;
 
 export class HeaderUtil {
-  static createAlert(res: Response, message: string, param: string): any {
-    res.set('X-' + applicationName + '-alert', message);
+  /** `code` is an i18n key (e.g. `app.zone.created`) — no human-readable text is ever sent to the client. */
+  static createAlert(res: Response, code: string, param: string): any {
+    res.set('X-' + applicationName + '-alert', code);
     res.set('X-' + applicationName + '-params', param);
   }
 
   static addEntityCreatedHeaders(res: Response, entityName, param): any {
     res.status(201);
-    const message = enableTranslation
-      ? applicationName + '.' + entityName + '.created'
-      : 'A new ' + entityName + ' is created with identifier ' + param;
-    this.createAlert(res, message, param);
+    this.createAlert(res, applicationName + '.' + entityName + '.created', param);
   }
 
   static addEntityUpdatedHeaders(res: Response, entityName, param): any {
     res.status(200);
-    const message = enableTranslation ? applicationName + '.' + entityName +
-    '.updated' : 'A ' + entityName + ' is updated with identifier ' + param;
-    this.createAlert(res, message, param);
+    this.createAlert(res, applicationName + '.' + entityName + '.updated', param);
   }
 
   static addEntityDeletedHeaders(res: Response, entityName, param): any {
     res.status(204);
-    const message = enableTranslation ? applicationName + '.' + entityName +
-    '.deleted' : 'A ' + entityName + ' is deleted with identifier ' + param;
-    this.createAlert(res, message, param);
+    this.createAlert(res, applicationName + '.' + entityName + '.deleted', param);
   }
 
   static addPaginationHeaders<T>(res: Response, page: Page<T>): any {
