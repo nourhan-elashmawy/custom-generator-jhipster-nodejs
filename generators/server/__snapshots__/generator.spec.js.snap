@@ -23,6 +23,9 @@ exports[`SubGenerator server of nodejs JHipster blueprint > run > should succeed
   ".lintstagedrc.cjs": {
     "stateCleared": "modified",
   },
+  ".npmrc": {
+    "stateCleared": "modified",
+  },
   ".prettierignore": {
     "stateCleared": "modified",
   },
@@ -54,6 +57,9 @@ exports[`SubGenerator server of nodejs JHipster blueprint > run > should succeed
     "stateCleared": "modified",
   },
   "package.json": {
+    "stateCleared": "modified",
+  },
+  "pnpm-workspace.yaml": {
     "stateCleared": "modified",
   },
   "server/.env": {
