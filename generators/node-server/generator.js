@@ -127,16 +127,32 @@ export default class extends BaseApplicationGenerator {
         });
       },
       async source({ source }) {
+        // Duplicate checks match identifiers rather than the exact inserted text: prettier may later wrap an entry
+        // over several lines with a trailing comma, which JHipster's default whitespace-insensitive check misses.
+        const escapeRegExp = str => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const importCheck = (name, from) =>
+          new RegExp(`^import\\s*\\{[^}]*\\b${name}\\b[^}]*\\}\\s*from\\s*['"]${escapeRegExp(from)}['"]`, 'm');
+        // Adds `name,` before the needle unless already listed. A function contentToAdd bypasses JHipster's own substring
+        // check (`Zone,` would match `AdministrativeZone,`). Import statements are ignored so a name on its own line inside
+        // a wrapped import is not mistaken for a list entry.
+        const listEntry =
+          name =>
+          (content, { needleLineIndex, indentPrefix }) => {
+            const listed = new RegExp(`^\\s*${name}\\s*,?\\s*$`, 'm').test(content.replace(/^import\b[^;]*;/gm, ''));
+            return listed ? content : `${content.slice(0, needleLineIndex)}${indentPrefix}${name},\n${content.slice(needleLineIndex)}`;
+          };
+
         source.addEntityToNodeConfig = ({ entityFileName, persistClass }) =>
           this.editFile(
             `${SERVER_NODEJS_SRC_DIR}/src/orm.config.ts`,
             createNeedleCallback({
               needle: 'add-entity-to-ormconfig-imports',
               contentToAdd: `import { ${persistClass} } from './domain/${entityFileName}.entity';`,
+              contentToCheck: importCheck(persistClass, `./domain/${entityFileName}.entity`),
             }),
             createNeedleCallback({
               needle: 'add-entity-to-ormconfig-entities',
-              contentToAdd: `${persistClass},`,
+              contentToAdd: listEntry(persistClass),
             }),
           );
         source.addEntityToAppModule = ({ entityClass, entityFileName }) =>
@@ -145,10 +161,11 @@ export default class extends BaseApplicationGenerator {
             createNeedleCallback({
               needle: 'jhipster-needle-add-entity-module-to-main-import',
               contentToAdd: `import { ${entityClass}Module } from './module/${entityFileName}.module';`,
+              contentToCheck: importCheck(`${entityClass}Module`, `./module/${entityFileName}.module`),
             }),
             createNeedleCallback({
               needle: 'jhipster-needle-add-entity-module-to-main',
-              contentToAdd: `${entityClass}Module,`,
+              contentToAdd: listEntry(`${entityClass}Module`),
             }),
           );
         source.addEntityErrorCode = ({ entityClass, nodejsErrorCodeKey, nodejsErrorCode }) =>
@@ -157,6 +174,7 @@ export default class extends BaseApplicationGenerator {
             createNeedleCallback({
               needle: 'jhipster-needle-add-entity-error-code',
               contentToAdd: `${nodejsErrorCodeKey}: { code: '${nodejsErrorCode}', status: HttpStatus.NOT_FOUND, message: '${entityClass} not found.' },`,
+              contentToCheck: new RegExp(`^\\s*${nodejsErrorCodeKey}\\s*:`, 'm'),
             }),
           );
       },
